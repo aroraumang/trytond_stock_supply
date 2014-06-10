@@ -1,5 +1,5 @@
-#This file is part of Tryton.  The COPYRIGHT file at the top level of
-#this repository contains the full copyright notices and license terms.
+# This file is part of Tryton.  The COPYRIGHT file at the top level of
+# this repository contains the full copyright notices and license terms.
 from __future__ import with_statement
 import datetime
 from trytond.model import ModelView, ModelSQL, fields
@@ -16,41 +16,44 @@ class PurchaseRequest(ModelSQL, ModelView):
     product = fields.Many2One(
         'product.product', 'Product', required=True, select=1, readonly=True,
         domain=[('purchasable', '=', True)])
-    party = fields.Many2One('party.party', 'Party',  select=1)
+    party = fields.Many2One('party.party', 'Party', select=1)
     quantity = fields.Float('Quantity', required=True)
     uom = fields.Many2One('product.uom', 'UOM', required=True, select=1)
     computed_quantity = fields.Float('Computed Quantity', readonly=True)
     computed_uom = fields.Many2One('product.uom', 'Computed UOM', readonly=True)
     purchase_date = fields.Date('Best Purchase Date', readonly=True)
     supply_date = fields.Date('Expected Supply Date', readonly=True)
-    stock_level =  fields.Float('Stock at Supply Date', readonly=True)
+    stock_level = fields.Float('Stock at Supply Date', readonly=True)
     warehouse = fields.Many2One(
         'stock.location', "Warehouse", required=True,
         domain=[('type', '=', 'warehouse')], readonly=True)
     purchase_line = fields.Many2One(
-        'purchase.line', 'Purchase Line',readonly=True)
-    purchase = fields.Function(fields.Many2One('purchase.purchase',
-        'Purchase'), 'get_purchase')
-    company = fields.Many2One('company.company', 'Company', required=True,
-            readonly=True, domain=[
-                ('id', If(In('company', Eval('context', {})), '=', '!='),
-                    Get(Eval('context', {}), 'company', 0)),
-            ])
-    origin = fields.Reference('Origin', selection='origin_get', readonly=True,
-            required=True)
+        'purchase.line', 'Purchase Line', readonly=True)
+    purchase = fields.Function(fields.Many2One(
+        'purchase.purchase', 'Purchase'), 'get_purchase'
+    )
+    company = fields.Many2One(
+        'company.company', 'Company', required=True, readonly=True,
+        domain=[
+            ('id', If(In('company', Eval('context', {})), '=', '!='),
+                Get(Eval('context', {}), 'company', 0)),
+        ]
+    )
+    origin = fields.Reference(
+        'Origin', selection='origin_get', readonly=True, required=True)
     state = fields.Function(fields.Selection([
         ('purchased', 'Purchased'),
         ('done', 'Done'),
         ('draft', 'Draft'),
         ('cancel', 'Cancel'),
-        ], 'State'), 'get_state')
+    ], 'State'), 'get_state')
 
     def __init__(self):
         super(PurchaseRequest, self).__init__()
         self._order[0] = ('id', 'DESC')
         self._error_messages.update({
-            'create_request': 'Purchase requests are only created by the system.',
-            })
+            'create_request': 'Purchase requests are only created by the system.',  # noqa
+        })
 
     def get_rec_name(self, ids, name):
         if isinstance(ids, (int, long)):
@@ -99,7 +102,7 @@ class PurchaseRequest(ModelSQL, ModelView):
         res = []
         model_ids = model_obj.search([
             ('model', '=', 'stock.order_point'),
-            ])
+        ])
         for model in model_obj.browse(model_ids):
             res.append([model.model, model.name])
         return res
@@ -110,7 +113,6 @@ class PurchaseRequest(ModelSQL, ModelView):
         create today to meet product outputs.
         """
         order_point_obj = self.pool.get('stock.order_point')
-        purchase_request_obj = self.pool.get('purchase.request')
         product_obj = self.pool.get('product.product')
         location_obj = self.pool.get('stock.location')
         user_obj = self.pool.get('res.user')
@@ -118,25 +120,25 @@ class PurchaseRequest(ModelSQL, ModelView):
 
         # fetch warehouses:
         warehouse_ids = location_obj.search([
-            ('type','=','warehouse'),
-            ])
+            ('type', '=', 'warehouse'),
+        ])
         # fetch order points
         order_point_ids = order_point_obj.search([
             ('type', '=', 'purchase'),
-            ])
+        ])
         # index them by product
         product2ops = {}
         for order_point in order_point_obj.browse(order_point_ids):
             product2ops[
                 (order_point.warehouse_location.id, order_point.product.id)
-                ] = order_point
+            ] = order_point
 
         # fetch stockable products
         product_ids = product_obj.search([
             ('type', '=', 'stockable'),
             ('purchasable', '=', True),
-            ])
-        #aggregate product by minimum supply date
+        ])
+        # aggregate product by minimum supply date
         date2products = {}
         for product in product_obj.browse(product_ids):
             min_date, max_date = self.get_supply_dates(product)
@@ -146,10 +148,12 @@ class PurchaseRequest(ModelSQL, ModelView):
         new_requests = []
         for min_date in date2products:
             product_ids = [x[0].id for x in date2products[min_date]]
-            with Transaction().set_context(forecast=True,
-                    stock_date_end=min_date or datetime.date.max,
-                    stock_skip_warehouse=True):
-                pbl = product_obj.products_by_location(warehouse_ids,
+            with Transaction().set_context(
+                forecast=True, stock_date_end=min_date or datetime.date.max,
+                stock_skip_warehouse=True
+            ):
+                pbl = product_obj.products_by_location(
+                    warehouse_ids,
                     product_ids, with_childs=True, skip_zero=False)
             for product, max_date in date2products[min_date]:
                 for warehouse_id in warehouse_ids:
@@ -160,10 +164,11 @@ class PurchaseRequest(ModelSQL, ModelView):
                         warehouse_id, product.id, min_date, max_date,
                         min_date_qty=qty, order_point=order_point)
 
-                    if shortage_date == None or product_quantity == None:
+                    if shortage_date is None or product_quantity is None:
                         continue
                     # generate request values
-                    request_val = self.compute_request(product, warehouse_id,
+                    request_val = self.compute_request(
+                        product, warehouse_id,
                         shortage_date, product_quantity, company, order_point)
                     new_requests.append(request_val)
 
@@ -179,12 +184,13 @@ class PurchaseRequest(ModelSQL, ModelView):
             if new_req['supply_date'] == datetime.date.max:
                 new_req['supply_date'] = None
             if new_req['quantity'] > 0.0:
-                new_req.update({'product': new_req['product'].id,
-                                'party': new_req['party'] and new_req['party'].id,
-                                'uom': new_req['uom'].id,
-                                'computed_uom': new_req['computed_uom'].id,
-                                'company': new_req['company'].id
-                                })
+                new_req.update({
+                    'product': new_req['product'].id,
+                    'party': new_req['party'] and new_req['party'].id,
+                    'uom': new_req['uom'].id,
+                    'computed_uom': new_req['computed_uom'].id,
+                    'company': new_req['company'].id
+                })
                 request_obj.create(new_req)
 
     def compare_requests(self, new_requests):
@@ -195,18 +201,17 @@ class PurchaseRequest(ModelSQL, ModelView):
         # delete purchase request without a purchase line
         uom_obj = self.pool.get('product.uom')
         request_obj = self.pool.get('purchase.request')
-        product_supplier_obj = self.pool.get('purchase.product_supplier')
         req_ids = request_obj.search([
             ('purchase_line', '=', False),
             ('origin', 'like', 'stock.order_point,%'),
-            ])
+        ])
         request_obj.delete(req_ids)
 
         req_ids = request_obj.search([
-                ('purchase_line.moves', '=', False),
-                ('purchase_line.purchase.state', '!=', 'cancel'),
-                ('origin', 'like', 'stock.order_point,%'),
-                ])
+            ('purchase_line.moves', '=', False),
+            ('purchase_line.purchase.state', '!=', 'cancel'),
+            ('origin', 'like', 'stock.order_point,%'),
+        ])
         requests = request_obj.browse(req_ids)
         # Fetch data from existing requests
         existing_req = {}
@@ -217,8 +222,8 @@ class PurchaseRequest(ModelSQL, ModelView):
                     request.warehouse.id != pline.purchase.warehouse.id:
                 continue
             # Take smallest amount between request and purchase line
-            req_qty = uom_obj.compute_qty(request.uom, request.quantity,
-                    pline.unit)
+            req_qty = uom_obj.compute_qty(
+                request.uom, request.quantity, pline.unit)
             if req_qty < pline.quantity:
                 quantity = request.quantity
                 uom = request.uom
@@ -227,28 +232,31 @@ class PurchaseRequest(ModelSQL, ModelView):
                 uom = pline.unit
 
             existing_req.setdefault(
-                (request.product.id, request.warehouse.id),
-                []).append({'supply_date': request.supply_date or datetime.date.max,
-                            'quantity': quantity,
-                            'uom': uom}
-                           )
+                (request.product.id, request.warehouse.id), []
+            ).append({
+                'supply_date': request.supply_date or datetime.date.max,
+                'quantity': quantity,
+                'uom': uom
+            })
 
         for i in existing_req.itervalues():
-            i.sort(lambda r,s: cmp(r['supply_date'],s['supply_date']))
+            i.sort(lambda r, s: cmp(r['supply_date'], s['supply_date']))
 
         # Update new requests to take existing requests into account
-        new_requests.sort(lambda r,s: cmp(r['supply_date'],s['supply_date']))
+        new_requests.sort(lambda r, s: cmp(r['supply_date'], s['supply_date']))
         for new_req in new_requests:
             for old_req in existing_req.get((new_req['product'].id,
                                              new_req['warehouse']), []):
                 if old_req['supply_date'] <= new_req['supply_date']:
-                    quantity = uom_obj.compute_qty(old_req['uom'],
-                            old_req['quantity'], new_req['uom'])
-                    new_req['quantity'] = max(0.0, new_req['quantity'] - quantity)
+                    quantity = uom_obj.compute_qty(
+                        old_req['uom'], old_req['quantity'], new_req['uom'])
+                    new_req['quantity'] = \
+                        max(0.0, new_req['quantity'] - quantity)
                     new_req['computed_quantity'] = new_req['quantity']
-                    old_req['quantity'] = uom_obj.compute_qty(new_req['uom'],
-                        max(0.0, quantity - new_req['quantity']),
-                        old_req['uom'])
+                    old_req['quantity'] = uom_obj.compute_qty(
+                        new_req['uom'],
+                        max(0.0, quantity - new_req['quantity']), old_req['uom']
+                    )
                 else:
                     break
 
@@ -286,8 +294,10 @@ class PurchaseRequest(ModelSQL, ModelView):
 
         return (min_date, max_date)
 
-    def compute_request(self, product, location_id, shortage_date,
-            product_quantity, company, order_point=None):
+    def compute_request(
+        self, product, location_id, shortage_date,
+        product_quantity, company, order_point=None
+    ):
         """
         Return the value of the purchase request which will answer to
         the needed quantity at the given date. I.e: the latest
@@ -311,9 +321,11 @@ class PurchaseRequest(ModelSQL, ModelView):
                 timedelta = sup_timedelta
                 continue
 
-            if timedelta < datetime.timedelta(0) \
-                    and (sup_timedelta >= datetime.timedelta(0) \
-                    or sup_timedelta > timedelta):
+            if timedelta < datetime.timedelta(0) and (
+                sup_timedelta >= datetime.timedelta(0) or (
+                    sup_timedelta > timedelta
+                )
+            ):
                 supplier = product_supplier.party
                 timedelta = sup_timedelta
 
@@ -323,12 +335,12 @@ class PurchaseRequest(ModelSQL, ModelView):
         else:
             purchase_date = today
 
-        quantity = uom_obj.compute_qty(product.default_uom,
-                max_quantity - product_quantity,
-                product.purchase_uom or product.default_uom)
+        quantity = uom_obj.compute_qty(
+            product.default_uom, max_quantity - product_quantity,
+            product.purchase_uom or product.default_uom)
 
         if order_point:
-            origin = 'stock.order_point,%s'%order_point.id
+            origin = 'stock.order_point,%s' % order_point.id
         else:
             origin = 'stock.order_point,0'
         return {'product': product,
@@ -379,10 +391,12 @@ class PurchaseRequest(ModelSQL, ModelView):
                 if (not res_qty) or (current_qty < res_qty):
                     res_qty = current_qty
 
-            with Transaction().set_context(stock_date_start=current_date,
-                    stock_date_end=current_date):
-                res = product_obj.products_by_location([location_id],
-                [product_id], with_childs=True, skip_zero=False)
+            with Transaction().set_context(
+                stock_date_start=current_date, stock_date_end=current_date
+            ):
+                res = product_obj.products_by_location(
+                    [location_id], [product_id],
+                    with_childs=True, skip_zero=False)
             for qty in res.itervalues():
                 current_qty += qty
             if current_date == datetime.date.max:
@@ -392,7 +406,9 @@ class PurchaseRequest(ModelSQL, ModelView):
         return (res_date, res_qty)
 
     def create(self, vals):
-        for field_name in ('product', 'quantity', 'uom', 'warehouse', 'company'):
+        for field_name in (
+            'product', 'quantity', 'uom', 'warehouse', 'company'
+        ):
             if not vals.get(field_name):
                 self.raise_user_error('create_request')
         return super(PurchaseRequest, self).create(vals)
@@ -420,18 +436,18 @@ class CreatePurchaseRequest(Wizard):
                 'state': [
                     ('end', 'Cancel', 'tryton-cancel'),
                     ('create', 'Create', 'tryton-ok', True),
-                    ],
-                },
+                ],
             },
+        },
         'create': {
             'actions': ['_create_purchase_request'],
             'result': {
                 'type': 'action',
                 'action': '_open',
                 'state': 'end',
-                },
             },
-        }
+        },
+    }
 
     def _create_purchase_request(self, data):
         purchase_request_obj = self.pool.get('purchase.request')
@@ -441,8 +457,8 @@ class CreatePurchaseRequest(Wizard):
     def _open(self, data):
         model_data_obj = self.pool.get('ir.model.data')
         act_window_obj = self.pool.get('ir.action.act_window')
-        act_window_id = model_data_obj.get_id('stock_supply',
-            'act_purchase_request_form_draft')
+        act_window_id = model_data_obj.get_id(
+            'stock_supply', 'act_purchase_request_form_draft')
         return act_window_obj.read(act_window_id)
 
 CreatePurchaseRequest()
@@ -459,6 +475,7 @@ class CreatePurchaseAskTerm(ModelView):
 
 CreatePurchaseAskTerm()
 
+
 class CreatePurchaseAskParty(ModelView):
     'Create Purchase Ask Party'
     _name = 'purchase.request.create_purchase.ask_party'
@@ -468,6 +485,7 @@ class CreatePurchaseAskParty(ModelView):
     party = fields.Many2One('party.party', 'Supplier', required=True)
 
 CreatePurchaseAskParty()
+
 
 class CreatePurchase(Wizard):
     'Create Purchase'
@@ -479,8 +497,8 @@ class CreatePurchase(Wizard):
             'result': {
                 'type': 'choice',
                 'next_state': '_create_purchase',
-                },
             },
+        },
 
 
         'ask_user_party': {
@@ -491,9 +509,9 @@ class CreatePurchase(Wizard):
                 'state': [
                     ('end', 'Cancel', 'tryton-cancel'),
                     ('init', 'Continue', 'tryton-go-next', True),
-                    ],
-                },
+                ],
             },
+        },
 
         'ask_user_term': {
             'actions': ['_set_default_term'],
@@ -503,18 +521,19 @@ class CreatePurchase(Wizard):
                 'state': [
                     ('end', 'Cancel', 'tryton-cancel'),
                     ('init', 'Continue', 'tryton-go-next', True),
-                    ],
-                },
+                ],
             },
+        },
 
-        }
+    }
 
     def __init__(self):
         super(CreatePurchase, self).__init__()
         self._error_messages.update({
-            'missing_price': 'Purchase price is missing for product: %s (id: %s)!',
+            'missing_price':
+                'Purchase price is missing for product: %s (id: %s)!',
             'please_update': 'This price is necessary for creating purchase.'
-            })
+        })
 
     def _set_default_party(self, data):
 
@@ -524,9 +543,15 @@ class CreatePurchase(Wizard):
             if request.purchase_line:
                 continue
             if not request.party:
-                return {'product': request.product.id,'company': request.company.id}
+                return {
+                    'product': request.product.id,
+                    'company': request.company.id
+                }
 
-        return {'product': request.product.id,'company': request.company.id}
+        return {
+            'product': request.product.id,
+            'company': request.company.id
+        }
 
     def _set_default_term(self, data):
 
@@ -536,15 +561,18 @@ class CreatePurchase(Wizard):
             if (not request.party) or request.purchase_line:
                 continue
             if not request.party.supplier_payment_term:
-                return {'party': request.party.id,'company': request.company.id}
+                return {
+                    'party': request.party.id, 'company': request.company.id
+                }
 
-        return {'party': request.party.id,'company': request.company.id}
+        return {
+            'party': request.party.id, 'company': request.company.id
+        }
 
     def _create_purchase(self, data):
         request_obj = self.pool.get('purchase.request')
         party_obj = self.pool.get('party.party')
         purchase_obj = self.pool.get('purchase.purchase')
-        product_obj = self.pool.get('product.product')
         line_obj = self.pool.get('purchase.line')
         date_obj = self.pool.get('ir.date')
 
@@ -554,22 +582,22 @@ class CreatePurchase(Wizard):
             req_ids = request_obj.search([
                 ('id', 'in', data['ids']),
                 ('party', '=', False),
-                ])
+            ])
             if req_ids:
                 request_obj.write(req_ids, {'party': form['party']})
 
         elif form.get('payment_term') and form.get('party') and \
                 form.get('company'):
             with Transaction().set_context(company=form['company']):
-                party_obj.write(form['party'],{
+                party_obj.write(form['party'], {
                     'supplier_payment_term': form['payment_term']
-                    })
+                })
 
         req_ids = request_obj.search([
             ('id', 'in', data['ids']),
             ('purchase_line', '=', False),
             ('party', '=', False),
-            ])
+        ])
         if req_ids:
             return 'ask_user_party'
 
@@ -597,10 +625,11 @@ class CreatePurchase(Wizard):
                     'payment_term': request.party.supplier_payment_term.id,
                     'warehouse': request.warehouse.id,
                     'currency': request.company.currency.id,
-                    'invoice_address': party_obj.address_get(request.party.id,
-                            type='invoice'),
+                    'invoice_address': party_obj.address_get(
+                        request.party.id, type='invoice'
+                    ),
                     'lines': [],
-                    }
+                }
 
                 purchases[key] = purchase
             else:
@@ -640,7 +669,6 @@ class CreatePurchase(Wizard):
         return res
 
     def compute_purchase_line(self, request):
-        party_obj = self.pool.get('party.party')
         product_obj = self.pool.get('product.product')
         tax_rule_obj = self.pool.get('account.tax.rule')
 
@@ -650,26 +678,29 @@ class CreatePurchase(Wizard):
             'quantity': request.quantity,
             'request': request.id,
             'description': request.product.name,
-            }
+        }
 
         # XXX purchase with several lines of the same product
-        with Transaction().set_context(uom=request.uom.id,
-                supplier=request.party.id,
-                currency=request.company.currency.id):
+        with Transaction().set_context(
+            uom=request.uom.id, supplier=request.party.id,
+            currency=request.company.currency.id
+        ):
             product_price = product_obj.get_purchase_price(
                     [request.product.id], request.quantity)[request.product.id]
 
         if not product_price:
-            self.raise_user_error('missing_price', (request.product.name,
-                    request.product.id), 'please_update')
+            self.raise_user_error('missing_price', (
+                request.product.name, request.product.id
+            ), 'please_update')
         line['unit_price'] = product_price
 
         taxes = []
         for tax in request.product.supplier_taxes_used:
             if request.party and request.party.supplier_tax_rule:
                 pattern = self._get_tax_rule_pattern(request)
-                tax_id = tax_rule_obj.apply(request.party.supplier_tax_rule,
-                        tax, pattern)
+                tax_id = tax_rule_obj.apply(
+                    request.party.supplier_tax_rule, tax, pattern
+                )
                 if tax_id:
                     taxes.append(tax_id)
                 continue

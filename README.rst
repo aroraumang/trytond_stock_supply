@@ -1,6 +1,12 @@
 trytond_stock_supply
 ====================
 
+.. image:: https://travis-ci.org/openlabs/trytond_stock_supply.png?branch=maste
+  :target: https://travis-ci.org/openlabs/trytond_stock_supply
+
+.. image:: https://coveralls.io/repos/openlabs/trytond_stock_supply/badge.png?branch=maste
+  :target: https://coveralls.io/r/openlabs/trytond_stock_supply
+
 The stock_supply module of the Tryton application platform.
 See __tryton__.py
 

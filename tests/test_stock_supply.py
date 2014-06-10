@@ -1,10 +1,12 @@
 #!/usr/bin/env python
-#This file is part of Tryton.  The COPYRIGHT file at the top level of
-#this repository contains the full copyright notices and license terms.
+# This file is part of Tryton.  The COPYRIGHT file at the top level of
+# this repository contains the full copyright notices and license terms.
 
-import sys, os
-DIR = os.path.abspath(os.path.normpath(os.path.join(__file__,
-    '..', '..', '..', '..', '..', 'trytond')))
+import sys
+import os
+DIR = os.path.abspath(os.path.normpath(os.path.join(
+    __file__, '..', '..', '..', '..', '..', 'trytond'
+)))
 if os.path.isdir(DIR):
     sys.path.insert(0, os.path.dirname(DIR))
 
@@ -26,6 +28,7 @@ class StockSupplyTestCase(unittest.TestCase):
         Test views.
         '''
         test_view('stock_supply')
+
 
 def suite():
     suite = trytond.tests.test_tryton.suite()

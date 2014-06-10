@@ -1,7 +1,6 @@
-#This file is part of Tryton.  The COPYRIGHT file at the top level of
-#this repository contains the full copyright notices and license terms.
+# This file is part of Tryton.  The COPYRIGHT file at the top level of
+# this repository contains the full copyright notices and license terms.
 from trytond.model import ModelView, ModelSQL, fields
-from trytond.wizard import Wizard
 from trytond.pyson import If, Equal, Eval, Not, In, Get
 from trytond.transaction import Transaction
 
@@ -19,8 +18,9 @@ class OrderPoint(ModelSQL, ModelView):
         'product.product', 'Product', required=True, select=1,
         domain=[
             ('type', '=', 'stockable'),
-            ('purchasable', 'in', If(Equal(Eval('type'), 'purchase'),
-                [True], [True, False])),
+            ('purchasable', 'in', If(
+                Equal(Eval('type'), 'purchase'), [True], [True, False]
+            )),
         ],
         on_change=['product'])
     warehouse_location = fields.Many2One(
@@ -37,8 +37,10 @@ class OrderPoint(ModelSQL, ModelView):
             'invisible': Not(Equal(Eval('type'), 'internal')),
             'required': Equal(Eval('type'), 'internal'),
         })
-    location = fields.Function(fields.Many2One('stock.location', 'Location'),
-            'get_location', searcher='search_location')
+    location = fields.Function(fields.Many2One(
+        'stock.location', 'Location'), 'get_location',
+        searcher='search_location'
+    )
     provisioning_location = fields.Many2One(
         'stock.location', 'Provisioning Location',
         domain=[('type', '=', 'storage')],
@@ -50,35 +52,40 @@ class OrderPoint(ModelSQL, ModelView):
         [('internal', 'Internal'),
          ('purchase', 'Purchase')],
         'Type', select=1, required=True)
-    min_quantity = fields.Float('Minimal Quantity', required=True,
-            digits=(16, Eval('unit_digits', 2)), depends=['unit_digits'])
-    max_quantity = fields.Float('Maximal Quantity', required=True,
-            digits=(16, Eval('unit_digits', 2)), depends=['unit_digits'])
-    company = fields.Many2One('company.company', 'Company', required=True,
-            domain=[
-                ('id', If(In('company', Eval('context', {})), '=', '!='),
-                    Get(Eval('context', {}), 'company', 0)),
-            ])
+    min_quantity = fields.Float(
+        'Minimal Quantity', required=True,
+        digits=(16, Eval('unit_digits', 2)), depends=['unit_digits']
+    )
+    max_quantity = fields.Float(
+        'Maximal Quantity', required=True,
+        digits=(16, Eval('unit_digits', 2)), depends=['unit_digits']
+    )
+    company = fields.Many2One(
+        'company.company', 'Company', required=True,
+        domain=[
+            ('id', If(In('company', Eval('context', {})), '=', '!='),
+                Get(Eval('context', {}), 'company', 0)),
+        ])
     unit = fields.Function(fields.Many2One('product.uom', 'Unit'), 'get_unit')
-    unit_digits = fields.Function(fields.Integer('Unit Digits'),
-            'get_unit_digits')
+    unit_digits = fields.Function(
+        fields.Integer('Unit Digits'), 'get_unit_digits'
+    )
 
     def __init__(self):
         super(OrderPoint, self).__init__()
         self._constraints += [
             ('check_concurrent_internal', 'concurrent_internal_op'),
             ('check_uniqueness', 'unique_op'),
-            ]
-        self._sql_constraints += [
-            ('check_min_max_quantity',
-             'CHECK( max_quantity is null or min_quantity is null or max_quantity >= min_quantity )',
-             'Maximal quantity must be bigger than Minimal quantity'),
-            ]
-        self._error_messages.update(
-            {'unique_op': 'Only one order point is allowed '\
-                 'for each product-location pair.',
-             'concurrent_internal_op': 'You can not define two order points '\
-                 'on the same product with opposite locations.',})
+        ]
+        self._sql_constraints += [(
+            'check_min_max_quantity',
+            'CHECK( max_quantity is null or min_quantity is null or max_quantity >= min_quantity )',  # noqa
+            'Maximal quantity must be bigger than Minimal quantity'),
+        ]
+        self._error_messages.update({
+            'unique_op': 'Only one order point is allowed for each product-location pair.',  # noqa
+            'concurrent_internal_op': 'You can not define two order points on the same product with opposite locations.',  # noqa
+        })
 
     def default_type(self):
         return "purchase"
@@ -116,9 +123,9 @@ class OrderPoint(ModelSQL, ModelView):
         same product and same company.
         """
         internal_ids = self.search([
-            ('id', 'in', ids), 
+            ('id', 'in', ids),
             ('type', '=', 'internal'),
-            ])
+        ])
         if not internal_ids:
             return True
 
@@ -134,9 +141,11 @@ class OrderPoint(ModelSQL, ModelView):
         return not bool(ids)
 
     def _type2field(self, type=None):
-        t2f = {'purchase': 'warehouse_location',
-               'internal': 'storage_location',}
-        if type == None:
+        t2f = {
+            'purchase': 'warehouse_location',
+            'internal': 'storage_location',
+        }
+        if type is None:
             return t2f
         else:
             return t2f[type]
@@ -150,11 +159,13 @@ class OrderPoint(ModelSQL, ModelView):
         query = ['OR']
         for op in self.browse(ids):
             field = self._type2field(op.type)
-            arg = ['AND',
-                   ('product', '=', op.product.id),
-                   (field, '=', op[field].id),
-                   ('id', '!=', op.id),
-                   ('company', '=', op.company.id),]
+            arg = [
+                'AND',
+                ('product', '=', op.product.id),
+                (field, '=', op[field].id),
+                ('id', '!=', op.id),
+                ('company', '=', op.company.id),
+            ]
             query.append(arg)
         ids = self.search(query)
         return not bool(ids)
@@ -178,7 +189,6 @@ class OrderPoint(ModelSQL, ModelView):
         return res
 
     def get_location(self, ids, name):
-        location_obj = self.pool.get('stock.location')
         res = {}
         for op in self.browse(ids):
             if op.type == 'purchase':
